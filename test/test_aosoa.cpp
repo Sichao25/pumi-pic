@@ -1,14 +1,6 @@
 #include <Cabana_Core.hpp>
 #include <Kokkos_Core.hpp>
 #include <iostream>
-#include "ppMemUsage.hpp"
-#include <Omega_h_mesh.hpp>
-#include <particle_structs.hpp>
-#include "pumipic_adjacency.hpp"
-#include "pumipic_mesh.hpp"
-#include "pumipic_ptcl_ops.hpp"
-#include "pumipic_profiling.hpp"
-#include "pseudoXGCmTypes.hpp"
 
 using DataTypes = Cabana::MemberTypes<double[3],  // position
                                         double[3],   // computed position  
@@ -21,15 +13,16 @@ using MemorySpace = Kokkos::DefaultExecutionSpace::memory_space;
 using AoSoA_t = Cabana::AoSoA<DataTypes, MemorySpace>;
 
 void count(AoSoA_t& aosoa) {
-  pumipic::kkLidView count("count", 1);
+  Kokkos::View<int*, MemorySpace> count("count", 1);
   auto mask = Cabana::slice<DataTypes::size-1>(aosoa, "mask");
   Kokkos::parallel_for("count_active", aosoa.size(), KOKKOS_LAMBDA(const int i) {
       if (mask(i)) {
           Kokkos::atomic_fetch_add(&count(0), 1);
       }
   });
-  int active_count = pumipic::getLastValue(count);
-  std::cout << "Number of active particles: " << active_count << std::endl;
+  Kokkos::View<int*, Kokkos::HostSpace> active_count("active_count", 1);
+  Kokkos::deep_copy(active_count, count);
+  std::cout << "Number of active particles: " << active_count(0) << std::endl;
 }
 
 int main(int argc, char* argv[])
@@ -72,7 +65,7 @@ int main(int argc, char* argv[])
     std::cout << "AoSoA vector length: " << soa_len << std::endl;
 
     Cabana::SimdPolicy<soa_len,Kokkos::DefaultExecutionSpace> simd_policy(0, size);
-    Cabana::simd_parallel_for(simd_policy, KOKKOS_LAMBDA( const lid_t soa, const lid_t ptcl ) {
+    Cabana::simd_parallel_for(simd_policy, KOKKOS_LAMBDA( const int soa, const int ptcl ) {
       if (mask.access(soa, ptcl)) {
         positions.access(soa, ptcl, 0) = 1.0;
         positions.access(soa, ptcl, 1) = 2.0;
