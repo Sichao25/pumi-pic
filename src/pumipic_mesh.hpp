@@ -14,13 +14,48 @@ namespace pumipic {
     Mesh(const Mesh&) = delete;
     Mesh& operator=(const Mesh&) = delete;
 
-    //Constucts PIC parts with a core and the entire mesh as buffer/safe
+    /** \brief Constucts PIC parts with a core and the entire mesh as buffer/safe
+      * \param full_mesh The full mesh to build the picparts from
+      * \param partition_vector An array of size full_mesh.nelems() with the
+      *        owning part for each element
+      */
     Mesh(Omega_h::Mesh& full_mesh, Omega_h::LOs partition_vector);
-    //Constructs PIC parts with a core and buffer all parts within buffer_layers
-    // All elements in the core and elements within safe_layers from the core are safe
+    /** \brief Constructs PIC parts with a core and buffer all parts within buffer_layers
+      * \param full_mesh The full mesh to build the picparts from
+      * \param partition_vector An array of size full_mesh.nelems() with the
+      *        owning part for each element
+      * \param buffer_layers The number of layers to go out to determine buffer
+      * \param safe_layers The number of layers to go out for safe zone
+      *        Must be <= buffer_layers
+      * 
+      * \details The buffer and safe zones are determined using a breadth first search
+      *          starting from the core region of the part. The search is done through
+      *          a selected lower dimension of entities called the bridge dimension. All
+      *          elements in the core and elements within safe_layers from the core are
+      *          safe.
+      *          Based on the full mesh, global entities are counted, and global/local IDs 
+      *          are assigned. Each MPI rank counts its own entities, and these counts 
+      *          are used to compute offsets. Local IDs are assigned in the order on
+      *          each rank, and the global-entities-per-rank offset is added to the local
+      *          IDs to produce the global IDs.
+      *          When constructing communication information, fully buffered regions and
+      *          their boundaries are identified by comparing the count difference of 
+      *          global entities and PICPart entities. The local IDs of boundary entities 
+      *          are then renumbered. Communication arrays indices are created for each 
+      *          entity by adding renumbered local IDs to a picpart-entities-per-rank offset.
+      *          Finally, boundary offsets and rank-local IDs are send/recv across ranks 
+      *          using MPI.
+      *  
+      */
     Mesh(Omega_h::Mesh& full_mesh, Omega_h::LOs partition_vector,
          int buffer_layers, int safe_layers);
-    //Create picparts from input structure
+    /** \brief Constructs PIC parts based on input structure
+      * \param in The input structure defining the partitioning
+      *
+      * \details Buffers and safe zone construction are determined based on selected method.
+      *          See Input class for details on the input structure. The picpart construction
+      *          is done using the same procedure as the other constructors.
+      */
     Mesh(Input&);
     ~Mesh();
 
